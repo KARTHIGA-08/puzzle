@@ -1,0 +1,741 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Praveen — Birthday Surprise (restartable)</title>
+<meta name="color-scheme" content="dark">
+<style>
+  :root{ --bg:#061323; --accent1:#ff7a6b; --accent2:#ffd27f; --text:#f7fbff; }
+  html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial;background:
+    radial-gradient(700px 260px at 6% 8%, rgba(255,120,120,0.04), transparent 6%),
+    linear-gradient(180deg,var(--bg),#04202b 80%); color:var(--text); overflow:hidden;}
+  .wrap{display:flex;align-items:center;justify-content:center;height:100vh;padding:18px;box-sizing:border-box;}
+  .panel{width:min(1150px,96vw);border-radius:14px;padding:18px;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));box-shadow:0 30px 90px rgba(2,8,20,0.6); border:1px solid rgba(255,255,255,0.03); position:relative; overflow:hidden;}
+  .topBar{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;}
+  .title{font-weight:900;font-size:22px;}
+  .subtitle{font-size:13px;color:rgba(235,245,255,0.9);max-width:56ch;margin-top:6px;}
+  .layout{display:grid;grid-template-columns:1fr 380px;gap:16px;align-items:start;}
+  @media (max-width:980px){ .layout{ grid-template-columns:1fr; } }
+
+  .board{width:100%;aspect-ratio:1/1;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);gap:12px;padding:12px;border-radius:12px;background:
+    linear-gradient(180deg, rgba(255,255,255,0.008), rgba(255,255,255,0.006));box-shadow:inset 0 6px 16px rgba(0,0,0,0.45);}  
+  .tile{border-radius:10px;overflow:hidden;position:relative;user-select:none;box-shadow:0 12px 30px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.02);transition:transform .18s,box-shadow .12s;background-size:300% 300%;background-position:center;cursor:pointer;}
+  .tile.blank{visibility:hidden;pointer-events:none;}
+  .tile.flash{transform:scale(1.04);box-shadow:0 28px 80px rgba(255,140,100,0.18);}
+
+  .cardRight{display:flex;flex-direction:column;gap:12px;}
+  .infoCard{padding:12px;border-radius:10px;background:linear-gradient(180deg, rgba(255,255,255,0.015), rgba(255,255,255,0.01));border:1px solid rgba(255,255,255,0.06);}  
+  .controls{display:flex;gap:8px;margin-top:8px;}
+  .btn{padding:10px 14px;border-radius:10px;border:none;cursor:pointer;font-weight:800;color:#072;background:linear-gradient(90deg,var(--accent2),var(--accent1));box-shadow:0 8px 20px rgba(255,120,100,0.08);}  
+  .btn.ghost{background:transparent;color:var(--text);border:1px solid rgba(255,255,255,0.06);box-shadow:none;}
+  .progress{font-weight:900;font-size:16px;color:#fff;}
+  .moves{font-weight:900;font-size:16px;color:#fff;}
+
+  /* modal */
+  .qModal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:260;background:linear-gradient(180deg,rgba(0,0,0,0.45),rgba(0,0,0,0.6));}
+  .qCard{width:min(92vw,720px);background:linear-gradient(180deg,#fff,#f3fbff);color:#072;border-radius:12px;padding:18px;box-shadow:0 20px 80px rgba(4,12,30,0.45);}  
+  .optBtn{display:block;width:100%;padding:12px 14px;border-radius:10px;border:none;cursor:pointer;background:linear-gradient(90deg,#6fb6ff,#7ad3ff);color:#024;font-weight:800;text-align:left;margin:8px 0;}
+
+  /* quotes layer */
+  .quotesLayer{position:fixed;inset:0;z-index:180;pointer-events:none;}
+  .quote{position:absolute;white-space:nowrap;font-weight:800;color:rgba(255,255,255,0.42);-webkit-text-stroke:0.6px rgba(0,0,0,0.18);text-shadow:0 8px 22px rgba(0,0,0,0.5);will-change:transform,opacity;pointer-events:none;mix-blend-mode:screen;}
+
+  /* canvas */
+  #particleCanvas{position:fixed;inset:0;z-index:290;pointer-events:none;}
+
+  .finalBox{position:fixed;inset:0;z-index:320;display:none;align-items:center;justify-content:center;padding:20px;pointer-events:none;}
+  .finalCard{max-width:1100px;padding:20px;border-radius:12px;text-align:center;font-weight:900;color:var(--text);box-shadow:0 30px 120px rgba(0,0,0,0.7);opacity:0;transform:translateY(8px) scale(.98);transition:opacity .9s, transform .9s;}
+  .finalCard.big{ font-size: clamp(48px, 8vw, 140px); line-height: 1; }
+  .finalCard.small{ font-size: clamp(20px, 3.8vw, 28px); text-align:left; font-weight:800; background: linear-gradient(90deg,#ff7a6b,#ffd27f,#9ae6ff,#c6ffb3); -webkit-background-clip:text; background-clip:text; color:transparent; text-shadow:0 6px 18px rgba(0,0,0,0.45);}
+  .finalCard.show{opacity:1;transform:translateY(0) scale(1);}  
+
+  /* Gallery full-screen recap with ropes on left & right */
+  .galleryOverlay{position:fixed;inset:0;z-index:900;display:none;align-items:center;justify-content:center;background:#000;overflow:hidden;}
+  .galleryBackground{position:absolute;inset:0;background:linear-gradient(180deg, rgba(0,0,0,0.6), rgba(0,0,0,0.95));pointer-events:none;z-index:880}
+  .ropeColumn{position:absolute;top:6%;bottom:6%;width:220px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:22px;z-index:880;pointer-events:none;padding:6% 0}
+  .ropeLeft{left:8px;}
+  .ropeRight{right:8px;}
+  .ropeImg{width:170px;height:110px;border-radius:8px;background-size:cover;background-position:center;box-shadow:0 20px 60px rgba(0,0,0,0.85);transform-origin:center;opacity:0;pointer-events:auto;border:3px solid rgba(255,255,255,0.04); z-index:882}
+  .ropeImg.hang{animation:pendulum 5.2s ease-in-out infinite}
+  .ropeImg.dance{animation:dancey 3.2s ease-in-out infinite}
+
+  .centerFrame{position:relative;width:calc(100% - 460px);height:84%;display:flex;align-items:center;justify-content:center;z-index:900;max-width:1100px;max-height:820px}
+  .bigPhoto{width:100%;height:100%;background-size:contain;background-repeat:no-repeat;background-position:center;border-radius:12px;box-shadow:0 40px 160px rgba(0,0,0,0.95);transition:opacity .5s, transform .6s; background-color:#000; z-index:900}
+  .photoQuote{position:absolute; bottom:6%; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.6); color:#fff; padding:14px 26px; border-radius:999px; font-weight:900; font-size: clamp(28px, 4.6vw, 56px); text-align:center; box-shadow:0 30px 90px rgba(0,0,0,0.9); white-space:nowrap; max-width:95%; overflow:hidden; text-overflow:ellipsis; z-index:920}
+
+  @keyframes pendulum{ 0%{ transform: translateY(0) rotate(-6deg)} 50%{ transform: translateY(10px) rotate(6deg)} 100%{ transform: translateY(0) rotate(-6deg)}}
+  @keyframes dancey { 0%{ transform: translateY(0) rotate(-1deg) scale(1) } 25%{ transform: translateY(-12px) rotate(2deg) scale(1.02)} 50%{ transform: translateY(0) rotate(-2deg) scale(0.98)} 75%{ transform: translateY(-8px) rotate(3deg) scale(1.03)} 100%{ transform: translateY(0) rotate(-1deg) scale(1) } }
+
+  @media (max-width:1200px){ .centerFrame{width:calc(100% - 360px);} .ropeColumn{width:160px} .ropeImg{width:130px;height:100px} }
+  @media (max-width:880px){ .galleryOverlay{align-items:flex-start} .centerFrame{width:92%;height:60%} .ropeColumn{display:none} }
+
+  .centerPlay{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:1000;display:none;align-items:center;justify-content:center;pointer-events:auto;opacity:0;transition:opacity 700ms ease, transform 700ms ease}
+  .centerPlay.show{display:flex;opacity:1;transform:translate(-50%,-50%) scale(1);}
+  .centerPlay button{background:linear-gradient(90deg,var(--accent1),var(--accent2));color:#072;border:none;padding:26px 44px;border-radius:999px;font-size:28px;font-weight:900;box-shadow:0 30px 120px rgba(0,0,0,0.75);cursor:pointer}
+  .musicBtn{margin-left:8px;padding:8px 10px;border-radius:8px;border:none;background:rgba(255,255,255,0.06);color:var(--text);cursor:pointer;font-weight:800;display:none}
+  .muteBtn{padding:6px 8px;border-radius:8px;border:none;background:rgba(255,255,255,0.04);color:var(--text);cursor:pointer;font-weight:700}
+  .questionsList{margin-top:10px;padding:10px;border-radius:8px;background:rgba(255,255,255,0.02); max-height:320px; overflow:auto; font-size:14px; line-height:1.4;}
+  .qItem{padding:8px;border-bottom:1px dashed rgba(255,255,255,0.04);}
+  .darkOverlay{position:fixed;inset:0;z-index:1100;background:rgba(0,0,0,0);transition:background 1400ms;pointer-events:none;display:flex;align-items:center;justify-content:center;}
+  .missText{font-weight:900;font-size:clamp(34px,9vw,140px); color:#fff; letter-spacing:0.6px; opacity:0; transition:opacity 2200ms; text-align:center; white-space:pre-wrap;}
+  .missText.show{ opacity:1; }
+  #errorOverlay{position:fixed;left:10px;right:10px;top:10px;bottom:10px;padding:20px;border-radius:12px;background:rgba(8,8,8,0.95);color:#ffd7d7;z-index:9999;display:none;overflow:auto;font-family:monospace;box-shadow:0 30px 120px rgba(0,0,0,0.9)}
+  #errorOverlay h2{margin:0 0 12px 0;font-size:20px;color:#ffb3b3}
+  #errorOverlay pre{white-space:pre-wrap;font-size:13px;color:#ffd7d7}
+
+  /* Intro start overlay */
+  .introOverlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:linear-gradient(180deg,rgba(2,6,12,0.6),rgba(2,6,12,0.85));z-index:2000}
+  .startBtn{background:linear-gradient(90deg,var(--accent1),var(--accent2));color:#072;border:none;padding:28px 48px;border-radius:999px;font-size:32px;font-weight:900;box-shadow:0 40px 160px rgba(0,0,0,0.8);cursor:pointer}
+</style>
+</head>
+<body>
+  <div class="quotesLayer" id="quotesLayer" aria-hidden="true"></div>
+  <canvas id="particleCanvas"></canvas>
+
+  <!-- Intro start overlay -->
+  <div class="introOverlay" id="introOverlay" aria-hidden="false">
+    <button class="startBtn" id="startBtn">Start</button>
+  </div>
+
+  <div class="wrap">
+    <div class="panel" id="mainPanel" role="main" aria-label="Birthday Experience">
+      <div class="topBar">
+        <div>
+          <div class="title">Praveen — A Surprise From Karthiga</div>
+          <div class="subtitle">Answer friendly questions to reveal the puzzle. No right answers — your choices are recorded privately.</div>
+        </div>
+        <div style="text-align:right;"><div style="font-weight:900;color:var(--text)">Heartfelt Blast</div></div>
+      </div>
+
+      <div class="layout">
+        <div>
+          <div class="board" id="board" aria-label="3x3 puzzle"></div>
+        </div>
+
+        <div class="cardRight">
+          <div class="infoCard">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <div class="progress" id="answeredCount">Answered: 0 / 7</div>
+              <div class="moves" id="moves">Moves: 0</div>
+            </div>
+            <div class="controls" style="margin-top:10px;">
+              <button class="btn" id="answerBtn">Answer Question</button>
+              <button class="btn ghost" id="resetBtn">Reset Puzzle</button>
+            </div>
+
+            <div style="margin-top:12px;display:flex;gap:8px;align-items:center;">
+              <div class="musicControls">
+                <button id="musicPlayBtn" class="musicBtn">play pandra</button>
+                <button id="muteBtn" class="muteBtn">mute</button>
+              </div>
+              <span style="font-size:12px;color:rgba(255,255,255,0.7)">(after wishes the big center play appears)</span>
+            </div>
+          </div>
+
+          <div class="infoCard" id="questionsCard">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <div style="font-weight:900">Puzzle Questions</div>
+              <button id="toggleQuestions" class="btn ghost" style="padding:6px 10px;font-weight:800">Show Questions</button>
+            </div>
+            <div class="questionsList" id="questionsList" style="display:none"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- question modal -->
+  <div id="qModal" class="qModal" role="dialog" aria-modal="true">
+    <div class="qCard">
+      <h3 id="qTitle">Question</h3>
+      <p id="qText"></p>
+      <div id="opts"></div>
+      <div style="display:flex;justify-content:flex-end;margin-top:12px;"><button id="closeQ" class="btn ghost">Close</button></div>
+    </div>
+  </div>
+
+  <!-- big typed wishes -->
+  <div class="finalBox" id="finalBox" aria-hidden="true">
+    <div class="finalCard big" id="finalCard"></div>
+  </div>
+
+  <!-- gallery overlay -->
+  <div class="galleryOverlay" id="galleryOverlay" aria-hidden="true">
+    <div class="galleryBackground"></div>
+    <div class="ropeColumn ropeLeft" id="ropeLeft" aria-hidden="true"></div>
+    <div class="centerFrame" id="centerFrame">
+      <div class="bigPhoto" id="bigPhoto"></div>
+      <div class="photoQuote" id="photoQuote"></div>
+    </div>
+    <div class="ropeColumn ropeRight" id="ropeRight" aria-hidden="true"></div>
+  </div>
+
+  <!-- big center button (appears after wishes) -->
+  <div class="centerPlay" id="centerPlay" aria-hidden="true">
+    <button id="centerPlayBtn" data-mode="startGallery">play pandra</button>
+  </div>
+
+  <!-- darken + miss overlay -->
+  <div class="darkOverlay" id="darkOverlay" aria-hidden="true">
+    <div class="missText" id="missText"></div>
+  </div>
+
+  <!-- audio assets (place audio1.mpeg, audio2.mpeg, audio3.mpeg in same folder) -->
+  <audio id="audio1" preload="auto" src="audio1.mpeg"></audio> <!-- gallery audio (plays until final click) -->
+  <audio id="audio2" preload="auto" src="audio2.mpeg"></audio> <!-- message audio -->
+  <audio id="audio3" preload="auto" src="audio3.mpeg"></audio> <!-- start-screen background audio -->
+
+  <div id="errorOverlay" role="alert" aria-live="assertive">
+    <h2>Runtime error detected — details below</h2>
+    <pre id="errorText">No errors yet.</pre>
+  </div>
+
+<script>
+/* ====== Error overlay helper ====== */
+(function setupErrorHandlers(){ const overlay=document.getElementById('errorOverlay'), errText=document.getElementById('errorText'); function showError(title,msg){ overlay.style.display='block'; const now=new Date().toISOString(); errText.textContent=`${now}\n\n${title}\n\n${msg}`; console.error(title,msg); } window.addEventListener('error', ev=>{ ev.preventDefault && ev.preventDefault(); showError('window.onerror: '+(ev&&ev.message?ev.message:String(ev)), (ev&&ev.error&&ev.error.stack)?ev.error.stack:JSON.stringify(ev)); }); window.addEventListener('unhandledrejection', ev=>{ const reason=ev&&ev.reason?ev.reason:ev; showError('Unhandled Promise Rejection: '+(reason&&reason.message?reason.message:String(reason)), (reason&&reason.stack)?reason.stack:JSON.stringify(reason)); }); window.__showError=showError; })();
+
+/* ====== Content & initial state ====== */
+const IMAGE_SRC='praveen1.jpeg';
+const GALLERY_START=2, GALLERY_END=24;
+const GALLERY = []; for(let i=GALLERY_START;i<=GALLERY_END;i++) GALLERY.push({src:`pic${i}.jpeg`,caption:`Memory ${i-1}`});
+const FLOATING_QUOTES=["My best friend. No replacements","My silent supporter, always","With you, life feels lighter","If loyalty had a face, it's him","Not related, but bonded forever","Friend like him = rare","Unfiltered talks. Unbreakable bond"];
+
+const RAW_QUESTIONS=[
+  {q:"What am I to you, honestly?", opts:["Just a friend","Best friend","Someone special","Irreplaceable"]},
+  {q:"What do you fear the most in our friendship?", opts:["Losing you","Misunderstandings","Distance","Nothing will break us"]},
+  {q:"If one day I stopped talking, what would you feel first?", opts:["Confused","Worried","I wouldn't notice","Broken"]},
+  {q:"Which moment with me touched you the most?", opts:["When I supported you","When I stayed when pushed away","When I made you smile","All of these"]},
+  {q:"What keeps our friendship strong?", opts:["Understanding","Effort","Trust","Everything together"]},
+  {q:"What does my presence in your life feel like?", opts:["Calmness","Strength","Emotion","Support"]},
+  {q:"Do you remember our first crazy memory together?", opts:["Yes, vividly","A little","Not really","I need reminders"]},
+  {q:"If you could gift me one thing, what would it be?", opts:["Time together","A trip","A memory album","A heartfelt note"]}
+];
+
+function dedupeQuestions(raw){
+  const s=new Set(), out=[];
+  for(const it of raw){
+    const t=(it.q||'').trim();
+    if(!t||s.has(t)) continue;
+    s.add(t);
+    const seenOpt=new Set();
+    const opts=(it.opts||[]).filter(o=>{ const o2=(o||'').trim(); if(!o2||seenOpt.has(o2)) return false; seenOpt.add(o2); return true; });
+    out.push({q:t,opts});
+  }
+  return out;
+}
+const ALL_QUESTIONS = dedupeQuestions(RAW_QUESTIONS);
+const QUESTIONS_TO_ASK = 7;
+const QUOTES_PER_PHOTO=["Always beside you 💫","A light in the dark 🌟","Your laugh = pure gold 😂","My constant 🤝","Unmatched loyalty 💯","Brother from another mother 🤗","Forever my anchor ⚓","The rarest kind 🧡","Your courage inspires 💪","Our late-night talks 🌙","Memories I'll keep 📸","You are irreplaceable 🥇","Hold on to this smile 😊","Thank you for showing up 🙏","For more adventures 🚗","To every silly moment 😜","My calm in chaos 🌿","The friend who stays 🛡️","You proved me wrong — in the best way ✨","A companion for life ❤️","Keep shining ✨","My proud friend 🏆","Missing you already 💔"];
+
+const FINAL_PASSAGE = `hey praveen eh nandha un thambi karthiga..Enaku unaku gift pannenum nu aase but unfortunately paneh mudile...ahnalum edhana onnu pananum nu thoniteh irundhuchi adha konje neram spend panni indhe website paneh...I know idhe vachi endhe use um ile but unaku idhu gnabagam irukum le thats why i did it..Enaku kedeche male frnds pole la yaarum iruke maatange nu nenechiruke but you proved it wrong man...And I'm very happy for being a frnd of you and thanks for coming into my life ...Clg le irundhevaraikum edhume therile da..Clg mudiye podhu unela ini paake mudiyadhu nu nenaikum bodhu hard ah hit aagudhu da..nee enaku close to the heart ah iruke nu tour mudinji nee vpm le erangane apole irundhu miss panen da...ofcourse enkoode irukreve ellarayum na miss poren idhu na already expect panadhu but you are really unexpected buddy,epdiya irundhalum naanum poiduve nu dha un manasu nenaikum ipovum ..pesradhu venum na koreyum due to some responsibility ore adiya povena nu ketah...you will see...one sec..HAPPY BIRTHDAY DA PATHU NAALU MUNNADI PORANDHAVANE...`;
+
+/* ====== DOM refs & run-state flags ====== */
+const boardEl=document.getElementById('board');
+const answeredCountEl=document.getElementById('answeredCount');
+const movesEl=document.getElementById('moves');
+const answerBtn=document.getElementById('answerBtn');
+const resetBtn=document.getElementById('resetBtn');
+const qModal=document.getElementById('qModal'), qTitle=document.getElementById('qTitle'), qText=document.getElementById('qText'), optsEl=document.getElementById('opts');
+const closeQ=document.getElementById('closeQ'), quotesLayer=document.getElementById('quotesLayer');
+
+const canvasEl=document.getElementById('particleCanvas'), ctx=canvasEl.getContext('2d');
+
+const introOverlay=document.getElementById('introOverlay'), startBtn=document.getElementById('startBtn');
+const centerPlay=document.getElementById('centerPlay'), centerPlayBtn=document.getElementById('centerPlayBtn');
+const galleryOverlay=document.getElementById('galleryOverlay'), ropeLeft=document.getElementById('ropeLeft'), ropeRight=document.getElementById('ropeRight');
+const bigPhoto=document.getElementById('bigPhoto'), photoQuote=document.getElementById('photoQuote');
+const finalBox=document.getElementById('finalBox'), finalCard=document.getElementById('finalCard');
+const darkOverlay=document.getElementById('darkOverlay'), missText=document.getElementById('missText');
+const questionsListEl=document.getElementById('questionsList'), toggleQuestionsBtn=document.getElementById('toggleQuestions');
+
+const audio1=document.getElementById('audio1'), audio2=document.getElementById('audio2'), audio3=document.getElementById('audio3');
+
+let tiles=[], tileEls=[], blankIndex=8;
+let requiredAnswers=QUESTIONS_TO_ASK, answered=0, userResponses=[];
+let particles=[];
+let galleryRunning=false;
+
+/* run control */
+let runStarted=false;      // true when user clicks Start
+let runCompleted=false;    // true after final flow finishes
+let questionQueue=[];
+
+/* ====== helpers ====== */
+function shuffleArray(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+function typeText(el,text,speed=40){ return new Promise(resolve=>{ el.textContent=''; let i=0; function step(){ if(i<=text.length){ el.textContent = text.slice(0,i); i++; setTimeout(step,speed); } else resolve(); } step(); }); }
+
+/* ====== prepare question queue (unique 7) ====== */
+function prepareQuestionQueue(){
+  const pool = shuffleArray(ALL_QUESTIONS.slice());
+  questionQueue = pool.slice(0, Math.min(QUESTIONS_TO_ASK, pool.length));
+}
+
+/* ====== puzzle functions ====== */
+function initPuzzle(){
+  tiles=[]; tileEls=[]; boardEl.innerHTML=''; answered=0; userResponses=[];
+  for(let i=0;i<9;i++) tiles.push(i===8?0:i+1);
+  for(let i=0;i<9;i++){
+    const id=tiles[i];
+    const el=document.createElement('div');
+    el.className='tile'; el.dataset.index=i; el.dataset.id=id; el.tabIndex=0;
+    if(id===0){ el.classList.add('blank'); el.style.background='transparent'; }
+    else {
+      const orig=id-1, or=Math.floor(orig/3), oc=orig%3;
+      el.style.backgroundImage = `url('${IMAGE_SRC}')`;
+      el.style.backgroundSize = `${3*100}% ${3*100}%`;
+      el.style.backgroundPosition = `${(oc*100/(3-1))}% ${(or*100/(3-1))}%`;
+    }
+    el.addEventListener('click', ()=> tryMove(parseInt(el.dataset.index,10)));
+    boardEl.appendChild(el);
+    tileEls.push(el);
+  }
+  blankIndex = tiles.indexOf(0);
+  randomLegalShuffle(200);
+  requiredAnswers = Math.max(1, QUESTIONS_TO_ASK);
+  updateUI();
+}
+function randomLegalShuffle(moves=200){
+  let last=-1;
+  for(let m=0;m<moves;m++){
+    const b=blankIndex;
+    const rc={r:Math.floor(b/3), c:b%3};
+    const cand=[];
+    const checks=[{r:rc.r-1,c:rc.c},{r:rc.r+1,c:rc.c},{r:rc.r,c:rc.c-1},{r:rc.r,c:rc.c+1}];
+    for(const p of checks) if(p.r>=0&&p.r<3&&p.c>=0&&p.c<3){ const idx=p.r*3+p.c; if(idx!==last) cand.push(idx); }
+    if(!cand.length) continue;
+    const pick=cand[Math.floor(Math.random()*cand.length)];
+    [tiles[b], tiles[pick]]=[tiles[pick], tiles[b]];
+    last=b;
+    blankIndex=pick;
+  }
+  renderTiles();
+}
+function renderTiles(){ for(let i=0;i<9;i++){ const id=tiles[i], el=tileEls[i]; if(id===0){ el.classList.add('blank'); el.style.visibility='hidden'; } else { el.classList.remove('blank'); el.style.visibility='visible'; const orig=id-1, or=Math.floor(orig/3), oc=orig%3; el.style.backgroundImage=`url('${IMAGE_SRC}')`; el.style.backgroundSize=`${3*100}% ${3*100}%`; el.style.backgroundPosition=`${(oc*100/(3-1))}% ${(or*100/(3-1))}%`; } } }
+function tryMove(idx){ const b=blankIndex; const r1=Math.floor(idx/3), c1=idx%3, r2=Math.floor(b/3), c2=b%3; const dist=Math.abs(r1-r2)+Math.abs(c1-c2); if(dist===1){ [tiles[b], tiles[idx]]=[tiles[idx], tiles[b]]; blankIndex=idx; renderTiles(); movesEl.textContent='Moves: (interactive)'; } }
+function solvePuzzleVisual(){ for(let i=0;i<9;i++) tiles[i] = (i<8)? i+1:0; blankIndex=8; renderTiles(); for(let i=0;i<8;i++){ tileEls[i].classList.add('flash'); setTimeout(()=>tileEls[i].classList.remove('flash'),800); } }
+function updateUI(){ answeredCountEl.textContent = `Answered: ${answered} / ${requiredAnswers}`; movesEl.textContent = `Moves: 0`; }
+
+/* ====== question flow (unique, navigates automatically) ====== */
+let activeQuestionIndex = -1;
+answerBtn.addEventListener('click', ()=> {
+  if(runCompleted) return;
+  if(!runStarted) return;
+  if(!questionQueue.length) prepareQuestionQueue();
+  if(answered >= requiredAnswers) return;
+  if(activeQuestionIndex < 0) openQuestion();
+});
+closeQ.addEventListener('click', ()=> qModal.style.display='none');
+
+function openQuestion(){
+  if(runCompleted) return;
+  if(!questionQueue.length) prepareQuestionQueue();
+  activeQuestionIndex++;
+  if(activeQuestionIndex >= questionQueue.length) activeQuestionIndex = questionQueue.length - 1;
+  const Q = questionQueue[activeQuestionIndex];
+  if(!Q) return;
+  qModal.style.display='flex';
+  qTitle.textContent = `Question (${answered+1}/${requiredAnswers})`;
+  qText.textContent = Q.q;
+  optsEl.innerHTML='';
+  const seen = new Set();
+  Q.opts.forEach(opt=>{
+    if(seen.has(opt)) return;
+    seen.add(opt);
+    const b=document.createElement('button');
+    b.className='optBtn';
+    b.textContent = opt;
+    b.addEventListener('click', ()=> {
+      userResponses.push({q:Q.q, answer: opt});
+      qModal.style.display='none';
+      afterAnswer();
+    });
+    optsEl.appendChild(b);
+  });
+}
+
+function afterAnswer(){
+  if(runCompleted) return;
+  answered++;
+  updateUI();
+  for(let i=0;i<8;i++){
+    if(tiles[i] !== i+1){
+      tiles[i] = i+1;
+      tileEls[i].classList.add('flash');
+      setTimeout(()=>tileEls[i].classList.remove('flash'),520);
+      break;
+    }
+  }
+  renderTiles();
+
+  if(answered < requiredAnswers){
+    if(activeQuestionIndex < questionQueue.length - 1){
+      setTimeout(()=> openQuestion(), 420);
+      return;
+    }
+    const remainingPool = ALL_QUESTIONS.filter(q => !questionQueue.includes(q));
+    if(remainingPool.length){
+      shuffleArray(remainingPool);
+      questionQueue = questionQueue.concat(remainingPool.slice(0, Math.max(0, requiredAnswers - questionQueue.length)));
+      setTimeout(()=> openQuestion(), 440);
+      return;
+    }
+  }
+
+  if(answered >= requiredAnswers){
+    setTimeout(()=> { solvePuzzleVisual(); runPostSolveSequence().catch(e=>window.__showError('runPostSolveSequence error', e && e.stack?e.stack:String(e))); }, 650);
+  }
+}
+
+/* ====== floating quotes ====== */
+const MIN_DIST_VW = 12;
+function spawnInitialQuotes(){ quotesLayer.innerHTML=''; for(let i=0;i<6;i++) spawnQuoteNoOverlap(true); setInterval(()=>{ if(quotesLayer.children.length < 12) spawnQuoteNoOverlap(false); }, 3200); }
+function spawnQuoteNoOverlap(initial){
+  const attempts=28;
+  for(let a=0;a<attempts;a++){
+    const x = 6 + Math.random()*88, y = 6 + Math.random()*88;
+    if(!overlapsExisting(x,y)){
+      const el=document.createElement('div'); el.className='quote';
+      el.textContent = FLOATING_QUOTES[Math.floor(Math.random()*FLOATING_QUOTES.length)];
+      const size = 14 + Math.floor(Math.random()*30);
+      el.style.left = x + 'vw'; el.style.top = y + 'vh'; el.style.fontSize = size + 'px';
+      el.dataset.x = x; el.dataset.y = y; el.dataset.phase = Math.random()*Math.PI*2;
+      quotesLayer.appendChild(el); animateQuote(el);
+      setTimeout(()=>{ if(el.parentNode) el.remove(); }, 35000 + Math.random()*12000);
+      return;
+    }
+  }
+  const el=document.createElement('div'); el.className='quote';
+  el.textContent = FLOATING_QUOTES[Math.floor(Math.random()*FLOATING_QUOTES.length)];
+  el.style.left = (10 + Math.random()*80) + 'vw'; el.style.top = (10 + Math.random()*80) + 'vh';
+  el.style.fontSize = '18px';
+  quotesLayer.appendChild(el); animateQuote(el);
+}
+function overlapsExisting(x,y){
+  const children = quotesLayer.children;
+  for(let i=0;i<children.length;i++){
+    const c = children[i];
+    const cx = parseFloat(c.dataset.x || c.style.left) || 0;
+    const cy = parseFloat(c.dataset.y || c.style.top) || 0;
+    const dx = Math.abs(cx - x), dy = Math.abs(cy - y);
+    const dist = Math.sqrt(dx*dx + (dy*1.05)*(dy*1.05));
+    if(dist < MIN_DIST_VW) return true;
+  }
+  return false;
+}
+function animateQuote(el){
+  const phase = parseFloat(el.dataset.phase || 0);
+  const speed = 0.35 + Math.random()*0.8;
+  const ampX = 3 + Math.random()*6, ampY = 1 + Math.random()*3;
+  let start = performance.now();
+  function step(t){
+    const dt = (t - start) * 0.001 * speed;
+    const dx = Math.sin(dt + phase) * ampX;
+    const dy = Math.cos(dt*0.6 + phase) * ampY;
+    el.style.transform = `translate(${dx}vw, ${dy}vh)`;
+    el.style.opacity = 0.42 + 0.06 * Math.sin(dt*0.6 + phase);
+    requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+/* ====== particles (unchanged) ====== */
+function setupCanvas(){ const ratio=devicePixelRatio||1; canvasEl.width = window.innerWidth*ratio; canvasEl.height = window.innerHeight*ratio; canvasEl.style.width = window.innerWidth + 'px'; canvasEl.style.height = window.innerHeight + 'px'; ctx.setTransform(ratio,0,0,ratio,0,0); }
+window.addEventListener('resize', setupCanvas); setupCanvas();
+let particleStore = [];
+function createParticle(x,y,vx,vy,size,life,color,shape){ particleStore.push({x,y,vx,vy,size,life,age:0,color,shape,alpha:1}); }
+function updateParticles(dt){ for(let i=particleStore.length-1;i>=0;i--){ const p=particleStore[i]; p.age+=dt; if(p.age>=p.life){ particleStore.splice(i,1); continue; } p.vy+=0.0012*dt; p.vx*=(1-0.0005*dt); p.vy*=(1-0.0005*dt); p.x += p.vx * dt * 0.06; p.y += p.vy * dt * 0.06; const rem = (p.life - p.age) / p.life; p.alpha = Math.max(0, Math.min(1, rem)); } }
+function drawParticles(){ ctx.clearRect(0,0,canvasEl.width,canvasEl.height); for(const p of particleStore){ ctx.globalAlpha = p.alpha; ctx.fillStyle = p.color; const s = Math.max(1,p.size); if(p.shape === 'circle'){ ctx.beginPath(); ctx.arc(p.x * (devicePixelRatio||1), p.y * (devicePixelRatio||1), s, 0, Math.PI*2); ctx.fill(); } else { ctx.font = `${s*1.9}px serif`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(p.shape, p.x * (devicePixelRatio||1), p.y * (devicePixelRatio||1)); } } ctx.globalAlpha = 1; }
+(function drawLoop(){ let last = performance.now(); function f(ts){ const dt = Math.min(40, ts-last); last = ts; updateParticles(dt); drawParticles(); requestAnimationFrame(f);} requestAnimationFrame(f); })();
+function randomColor(){ const pal=['#ff9a9e','#ffd27f','#9ae6ff','#c6ffb3','#ffd6f0','#ffef9a','#ffb07a','#d2b8ff']; return pal[Math.floor(Math.random()*pal.length)]; }
+function spawnCornerExplosion(corner,intensity=300){ const w=window.innerWidth,h=window.innerHeight; const sx=corner.includes('r')?w-40:40; const sy=corner.includes('b')?h-40:40; for(let i=0;i<intensity;i++){ const angleSpread=Math.PI/2; const base=corner==='tl'?-Math.PI/4:corner==='tr'?Math.PI/4*3:corner==='bl'?-Math.PI/4*3:Math.PI/4; const angle=base+(Math.random()-0.5)*angleSpread; const speed=80+Math.random()*260; const vx=Math.cos(angle)*speed*(0.6+Math.random()*1.6), vy=Math.sin(angle)*speed*(0.6+Math.random()*1.6); const size=2+Math.random()*9; const life=2000+Math.random()*3000; const color=randomColor(); createParticle(sx,sy,vx,vy,size,life,color, Math.random()<0.18?['🎉','✨','🎊','💥','🌟'][Math.floor(Math.random()*5)]:'circle'); } }
+function spawnHeavyShower(count){ const w=window.innerWidth; for(let i=0;i<count;i++){ const x=Math.random()*w; const y=-Math.random()*120; const vx=(Math.random()-0.5)*40; const vy=80+Math.random()*260; const size=1+Math.random()*7; const life=2800+Math.random()*4200; createParticle(x,y,vx,vy,size,life,randomColor(),'circle'); } }
+function spawnFireworkBursts(n){ const w=window.innerWidth,h=window.innerHeight; for(let i=0;i<n;i++){ setTimeout(()=>{ const cx=120+Math.random()*(w-240); const cy=120+Math.random()*(h-240); const parts=70+Math.floor(Math.random()*90); for(let j=0;j<parts;j++){ const ang=Math.random()*Math.PI*2; const sp=40+Math.random()*260; const vx=Math.cos(ang)*sp; const vy=Math.sin(ang)*sp; const size=2+Math.random()*10; const life=1400+Math.random()*2600; createParticle(cx,cy,vx,vy,size,life,randomColor(), Math.random()<0.18?['✨','🎆'][Math.floor(Math.random()*2)]:'circle'); } }, Math.random()*10000); } }
+
+/* ====== Post-solve sequence ====== */
+async function runPostSolveSequence(){
+  if(runCompleted) return;
+  spawnCornerExplosion('tl',200); spawnCornerExplosion('tr',200); spawnCornerExplosion('bl',200); spawnCornerExplosion('br',200);
+  spawnHeavyShower(600); spawnFireworkBursts(24);
+
+  await smallBurstCarousel();
+  await showBigBirthdayWishes();
+
+  // reveal center play (first mode: start gallery)
+  if(runCompleted) return;
+  centerPlayBtn.dataset.mode = 'startGallery';
+  centerPlayBtn.textContent = 'play pandra';
+  centerPlay.style.display = 'flex';
+  setTimeout(()=> centerPlay.classList.add('show'), 40);
+  centerPlay.setAttribute('aria-hidden','false');
+}
+
+async function smallBurstCarousel(){
+  if(!GALLERY.length) return;
+  const flashes = Math.min(8, GALLERY.length);
+  for(let i=0;i<flashes;i++){
+    spawnCornerExplosion(i%4===0?'tl':i%4===1?'tr':i%4===2?'bl':'br', 40);
+    await sleep(220);
+  }
+}
+
+async function showBigBirthdayWishes(){
+  finalBox.style.display = 'flex';
+  finalCard.classList.remove('small'); finalCard.classList.add('big','show');
+  finalCard.textContent = '';
+  const lines=[{text:'H A P P Y', emoji:'🎉'},{text:'B I R T H D A Y', emoji:'🎂'},{text:'P R A V E E N !', emoji:'🎈'}];
+  for(let i=0;i<lines.length;i++){
+    await typeText(finalCard, lines[i].text, 140);
+    const em = document.createElement('div'); em.style.fontSize='46px'; em.style.marginTop='8px'; em.textContent = lines[i].emoji;
+    finalCard.appendChild(em);
+    await sleep(1100 + i*200);
+    if(i !== lines.length-1){
+      finalCard.classList.remove('show'); await sleep(300); finalCard.textContent=''; finalCard.classList.add('show');
+    }
+  }
+  await sleep(700);
+  finalCard.classList.remove('show'); finalBox.style.display='none';
+}
+
+/* ====== rope columns (4 left, 4 right) ====== */
+function placeRopeColumns(){
+  ropeLeft.innerHTML=''; ropeRight.innerHTML='';
+  const leftList = GALLERY.slice(0,4);
+  const rightList = GALLERY.slice(4,8);
+  function appendColumn(list, container){
+    container.style.display='flex'; container.style.flexDirection='column'; container.style.alignItems='center'; container.style.justifyContent='flex-start'; container.style.paddingTop='4%';
+    for(let i=0;i<list.length;i++){
+      const g=list[i];
+      const img=document.createElement('div'); img.className='ropeImg '+((i%2===0)?'hang':'dance'); img.style.backgroundImage=`url('${g.src}')`;
+      img.style.transition=`opacity 420ms ${i*80}ms, transform 520ms ${i*80}ms`; img.style.opacity='0';
+      container.appendChild(img); setTimeout(()=>img.style.opacity='0.98',160 + i*120);
+    }
+  }
+  appendColumn(leftList, ropeLeft); appendColumn(rightList, ropeRight);
+}
+
+/* show/hide gallery overlay */
+function showGalleryOverlay(){ galleryOverlay.style.display='flex'; galleryOverlay.setAttribute('aria-hidden','false'); document.getElementById('mainPanel').style.display='none'; placeRopeColumns(); GALLERY.forEach(g=>{ const im=new Image(); im.src=g.src; }); }
+function hideGalleryOverlay(){ galleryOverlay.style.display='none'; document.getElementById('mainPanel').style.display='block'; ropeLeft.innerHTML=''; ropeRight.innerHTML=''; }
+
+/* ====== startGalleryRun (audio1 will continue until final click) ====== */
+async function startGalleryRun(){
+  if(runCompleted) return;
+  if(galleryRunning) return;
+  galleryRunning = true;
+
+  // stop intro audio (audio3) if playing
+  try { if(audio3 && !audio3.paused){ audio3.pause(); audio3.currentTime = 0; } } catch(e){}
+
+  // try to play audio1
+  try { audio1.currentTime = 0; await audio1.play(); } catch(e){ console.warn('audio1 play prevented', e); }
+
+  showGalleryOverlay();
+  spawnHeavyShower(120);
+
+  const order = shuffleArray([...Array(GALLERY.length).keys()]);
+  const perPhotoDelay = 1800;
+  for(let k=0;k<order.length;k++){
+    if(runCompleted) break;
+    const i = order[k];
+    const g = GALLERY[i];
+    bigPhoto.style.backgroundImage = `url('${g.src}')`;
+    bigPhoto.style.opacity = 0; bigPhoto.style.transform = 'scale(0.98)';
+    setTimeout(()=>{ bigPhoto.style.opacity = 1; bigPhoto.style.transform = 'scale(1)'; }, 40);
+    photoQuote.classList.remove('small'); photoQuote.textContent=''; photoQuote.style.opacity='1';
+    const quote = (QUOTES_PER_PHOTO[i] || FLOATING_QUOTES[i % FLOATING_QUOTES.length]) + '  ' + ['💫','🤗','❤️','✨','🎂','🥳','🌟'][i % 7];
+    await typeText(photoQuote, quote, 90);
+    await sleep(perPhotoDelay);
+    photoQuote.style.opacity='0'; bigPhoto.style.opacity='0';
+    await sleep(240);
+  }
+
+  // hide gallery overlay (do NOT stop audio1 here - requirement: audio1 plays until final click)
+  hideGalleryOverlay();
+
+  // show center button to play final audio2 (and text)
+  centerPlayBtn.dataset.mode = 'playMessage';
+  centerPlayBtn.textContent = 'click pannu praveen eh';
+  centerPlay.style.display = 'flex';
+  setTimeout(()=> centerPlay.classList.add('show'), 40);
+  centerPlay.setAttribute('aria-hidden','false');
+}
+
+/* ====== center play: dual-mode handler ====== */
+centerPlayBtn.addEventListener('click', async ()=>{
+  if(runCompleted) return;
+  const mode = centerPlayBtn.dataset.mode || 'startGallery';
+  // hide center button gracefully
+  centerPlay.classList.remove('show');
+  setTimeout(()=> centerPlay.style.display = 'none', 260);
+
+  if(mode === 'startGallery'){
+    await startGalleryRun().catch(e=>window.__showError('startGalleryRun error', e && e.stack?e.stack:String(e)));
+    return;
+  }
+
+  if(mode === 'playMessage'){
+    // Pause audio1 before playing audio2
+    try { if(audio1 && !audio1.paused){ audio1.pause(); } } catch(e){}
+
+    // Play audio2 (message)
+    try { audio2.currentTime = 0; await audio2.play(); } catch(e){ console.warn('audio2 play prevented', e); }
+
+    // show final typed message
+    await showFinalPassageSmallWithEmojis();
+
+    // await audio2 end or safety timeout
+    if(!audio2.paused){
+      await new Promise(resolve=>{
+        const onEnd = ()=>{ audio2.removeEventListener('ended', onEnd); resolve(); };
+        audio2.addEventListener('ended', onEnd);
+        setTimeout(()=>{ audio2.removeEventListener('ended', onEnd); resolve(); }, 90000);
+      });
+    }
+
+    // show miss fade
+    await showMissAndFadeUltraSlow();
+
+    // mark run completed and reset to show Start again
+    runCompleted = true;
+
+    // send responses quietly
+    await sendResponsesAutomatic();
+
+    // reset UI and show Start overlay so user can run again
+    await resetForRestart();
+    return;
+  }
+});
+
+/* ====== final small passage & miss fade ====== */
+async function showFinalPassageSmallWithEmojis(){
+  finalBox.style.display='flex';
+  finalCard.classList.remove('big'); finalCard.classList.add('small','show'); finalCard.textContent='';
+  const emojiPool=['🥺','😢','❤️','🙏','🤍','🥰','🌸','🎈','🤝'];
+  const raw=FINAL_PASSAGE.replace(/\.\.\./g,'...');
+  const chunks = raw.split(/(\.\.\.|\.|,| but | and |\?|!)/).map(s=>s.trim()).filter(Boolean);
+  let emojiIndex=0;
+  for(const chunk of chunks){
+    if(!chunk) continue;
+    await typeText(finalCard, chunk, 90);
+    finalCard.textContent += ' ' + emojiPool[emojiIndex % emojiPool.length] + '\n\n';
+    emojiIndex++;
+    await sleep(600);
+  }
+  await sleep(900);
+  finalCard.classList.remove('show'); finalBox.style.display='none';
+}
+
+async function showMissAndFadeUltraSlow(){
+  darkOverlay.style.display='flex';
+  darkOverlay.style.background='rgba(0,0,0,0)';
+  await sleep(80);
+  darkOverlay.style.transition='background 2200ms';
+  darkOverlay.style.background='rgba(0,0,0,0.94)';
+  await sleep(1200);
+  const msg="I'm going to miss you 💔";
+  missText.textContent=''; missText.classList.add('show');
+  for(let i=0;i<msg.length;i++){ missText.textContent += msg[i]; const delay = 260 + Math.min(900, Math.floor(i*18)); await sleep(delay); }
+  await sleep(1500);
+  missText.style.transition='opacity 7600ms'; missText.style.opacity='0';
+  await sleep(7800);
+  darkOverlay.style.background='rgba(0,0,0,0)'; missText.textContent=''; missText.style.opacity='1'; darkOverlay.style.display='none';
+}
+
+/* ====== reset for restart (clean up and show start) ====== */
+async function resetForRestart(){
+  // stop audios
+  try{ if(audio1 && !audio1.paused){ audio1.pause(); audio1.currentTime = 0; } }catch(e){}
+  try{ if(audio2 && !audio2.paused){ audio2.pause(); audio2.currentTime = 0; } }catch(e){}
+  try{ if(audio3 && !audio3.paused){ audio3.pause(); audio3.currentTime = 0; } }catch(e){}
+
+  // hide overlays
+  hideGalleryOverlay();
+  centerPlay.classList.remove('show'); centerPlay.style.display='none';
+  finalBox.style.display='none';
+  qModal.style.display='none';
+  darkOverlay.style.display='none';
+  quotesLayer.innerHTML='';
+
+  // reset flags & state
+  runStarted = false;
+  galleryRunning = false;
+  runCompleted = false;
+  userResponses = [];
+  questionQueue = [];
+  activeQuestionIndex = -1;
+  answered = 0;
+  prepareQuestionQueue();
+  renderQuestionsList();
+
+  // re-initialize puzzle but keep it hidden behind the start overlay (for fresh run)
+  initPuzzle();
+
+  // show intro overlay again so user can start again
+  introOverlay.style.display = 'flex';
+  introOverlay.setAttribute('aria-hidden','false');
+
+  // start background intro audio3 again when user clicks Start (not now).
+}
+
+/* ====== send responses (unchanged) ====== */
+async function sendResponsesAutomatic(){ const payload={sentAt:new Date().toISOString(), responses:userResponses}; try{ const resp = await fetch('/.netlify/functions/sendResponses',{ method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ emailTo:'karthigavino2309@gmail.com', payload }) }); if(!resp.ok) localStorage.setItem('birthdayPuzzleResponses', JSON.stringify(payload)); }catch(e){ localStorage.setItem('birthdayPuzzleResponses', JSON.stringify(payload)); } }
+
+/* ====== questions list UI ====== */
+function renderQuestionsList(){
+  if(!questionsListEl) return;
+  questionsListEl.innerHTML='';
+  const list = questionQueue.length ? questionQueue : (ALL_QUESTIONS.slice(0,QUESTIONS_TO_ASK));
+  list.forEach((q,i)=>{ const item=document.createElement('div'); item.className='qItem'; const optsHtml=q.opts.map(o=>`<span style="margin-right:8px;color:rgba(255,255,255,0.8)">• ${escapeHtml(o)}</span>`).join(''); item.innerHTML=`<strong>${i+1}.</strong> ${escapeHtml(q.q)}<div style="margin-top:8px;font-size:13px">${optsHtml}</div>`; questionsListEl.appendChild(item); });
+}
+function escapeHtml(s){ return (s+'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* ====== event hookups & start behavior ====== */
+resetBtn.addEventListener('click', ()=>{ try{
+  initPuzzle(); userResponses=[]; answered=0; updateUI();
+  if(qModal) qModal.style.display='none';
+  spawnInitialQuotes();
+  prepareQuestionQueue();
+  renderQuestionsList();
+  try{ if(audio1 && !audio1.paused){ audio1.pause(); audio1.currentTime = 0; } }catch(e){}
+  try{ if(audio2 && !audio2.paused){ audio2.pause(); audio2.currentTime = 0; } }catch(e){}
+}catch(e){ window.__showError('Reset handler error', e && e.stack?e.stack:String(e)); } });
+
+toggleQuestionsBtn.addEventListener('click', ()=>{ const showing = questionsListEl.style.display!=='none'; questionsListEl.style.display = showing ? 'none' : 'block'; toggleQuestionsBtn.textContent = showing ? 'Show Questions' : 'Hide Questions'; });
+
+startBtn.addEventListener('click', async ()=>{
+  if(runStarted) return;
+  runStarted = true;
+  runCompleted = false;
+
+  // hide intro overlay
+  introOverlay.style.display = 'none';
+  introOverlay.setAttribute('aria-hidden','true');
+
+  // prepare and start
+  prepareQuestionQueue();
+  renderQuestionsList();
+  initPuzzle();
+  spawnInitialQuotes();
+
+  // play intro audio3
+  try { audio3.currentTime = 0; await audio3.play(); } catch(e){ console.warn('audio3 prevented', e); }
+
+  // open first question shortly after start
+  setTimeout(()=> { if(!runCompleted) openQuestion(); }, 600);
+});
+
+/* centerPlay keyboard */
+centerPlayBtn.addEventListener('keydown', (e)=>{ if(e.key === 'Enter' || e.key === ' ') { e.preventDefault(); centerPlayBtn.click(); } });
+
+/* music and mute */
+document.getElementById('musicPlayBtn').addEventListener('click', ()=>{ try { if(audio1.paused){ audio1.play().catch(()=>{}); document.getElementById('musicPlayBtn').textContent='pause pandra'; } else { audio1.pause(); document.getElementById('musicPlayBtn').textContent='play pandra'; } } catch(e){} });
+document.getElementById('muteBtn').addEventListener('click', ()=>{ audio1.muted = !audio1.muted; audio2.muted = audio1.muted; audio3.muted = audio1.muted; document.getElementById('muteBtn').textContent = audio1.muted ? 'unmute' : 'mute'; });
+
+/* initial load */
+window.addEventListener('load', ()=>{ try{ GALLERY.forEach(g=>{ const im=new Image(); im.src=g.src; }); prepareQuestionQueue(); renderQuestionsList(); initPuzzle(); spawnInitialQuotes(); }catch(e){ window.__showError('load handler error', e && e.stack?e.stack:String(e)); } });
+</script>
+</body>
+</html>
